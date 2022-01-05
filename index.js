@@ -35,8 +35,6 @@ fs.readdir(championNamesFolder, (err, file) => {
           }
         })
 
-
-        // console.log(test)
         // $ is Cheerio by default
         //a lean implementation of core jQuery designed specifically for the server
         console.log($("title").text());
@@ -51,7 +49,5 @@ fs.readdir(championNamesFolder, (err, file) => {
     fixName = fixName.join("_")
     c.queue({uri: `https://leagueoflegends.fandom.com/wiki/${fixName}`, parameter1: fixName});
   })
-
-  console.log('Hello World')
 })
 
