@@ -4,50 +4,60 @@ const jsdom = require("jsdom");
 const { JSDOM } = jsdom;
 const client = require('https');
 
-const championNamesFolder = 'D:\\dragontail-11.24.1\\11.24.1\\data\\en_US\\champion'
-const championNames = [];
+const crawlerChampionImage = new Crawler({
+  maxConnections : 10,
+  rateLimit: 2000,
+  // This will be called for each crawled page
+  callback : function (error, res, done) {
+    if(error){
+      console.log(error);
+    }else{
+      const $ = res.$;
+      const championName = res.options.parameter1;
 
-fs.readdir(championNamesFolder, (err, file) => {
-  file.forEach(file => {
-    championNames.push(file.split('.')[0])
-  })
+      const regex = new RegExp(`.+?${championName}.png.+?`, 'msg');
 
-  const c = new Crawler({
-    maxConnections : 10,
-    rateLimit: 2000,
-    // This will be called for each crawled page
-    callback : function (error, res, done) {
-      if(error){
-        console.log(error);
-      }else{
-        const $ = res.$;
-        const championName = res.options.parameter1;
-        const regex = new RegExp(`.+?${championName}_Render.png.+?`, 'msg');
+      const dom = new JSDOM(res.body);
+      const imgTags = dom.window.document.querySelectorAll("img");
 
-        const dom = new JSDOM(res.body);
-        const imgTags = dom.window.document.querySelectorAll("img");
+      imgTags.forEach((tag) => {
+        if(regex.test(tag.src)) {
+          client.get(tag.src, (res) => {
+            res.pipe(fs.createWriteStream(`renders/${championName}.png`));
+          });
+        }
+      })
 
-        imgTags.forEach((tag) => {
-          if(regex.test(tag.src)) {
-            client.get(tag.src, (res) => {
-              res.pipe(fs.createWriteStream(`renders/${championName}.png`));
-            });
-          }
-        })
-
-        // $ is Cheerio by default
-        //a lean implementation of core jQuery designed specifically for the server
-        console.log($("title").text());
-      }
-      done();
-      console.log(done)
+      console.log($("title").text());
     }
-  });
+    done();
+    console.log(done)
+  }
+});
 
-  championNames.forEach((name) => {
-    let fixName = name.match(/[A-Z][a-z]+/g);
-    fixName = fixName.join("_")
-    c.queue({uri: `https://leagueoflegends.fandom.com/wiki/${fixName}`, parameter1: fixName});
-  })
+const crawlerRenders = new Crawler({
+  maxConnections: 10,
+  callback: function (error, res, done) {
+    if(error){
+      console.log(error);
+    }else {
+      const $ = res.$;
+
+      const dom = new JSDOM(res.body);
+      const champMembers = dom.window.document.querySelectorAll("#content .category-page__member-link");
+
+      const champNameRegex = RegExp('File:(.+?)\\.png');
+
+      champMembers.forEach((member) => {
+        const href = member.getAttribute('href');
+        const champName = champNameRegex.exec(href)[1];
+
+        crawlerChampionImage.queue({uri: `https://leagueoflegends.fandom.com/${href}`, parameter1: champName});
+      });
+    }
+    done();
+  }
 })
+
+crawlerRenders.queue('https://leagueoflegends.fandom.com/wiki/Category:Champion_renders')
 
